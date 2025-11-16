@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+  cassandra:
+    image: cassandra:4.1
+    container_name: cassandra
+    environment:
+      - CASSANDRA_CLUSTER_NAME=MyCluster
+      - CASSANDRA_AUTHENTICATOR=${CASSANDRA_AUTHENTICATOR}
+      - CASSANDRA_PASSWORD_SEEDER=${CASSANDRA_PASSWORD_SEEDER}
+      - CASSANDRA_USERNAME=${CASSANDRA_USERNAME}
+      - CASSANDRA_PASSWORD=${CASSANDRA_PASSWORD}
+    ports:
+      - "9042:9042"
+    networks:
+      - etl-net
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+    ports:
+      - "3307:3306"
+    networks:
+      - etl-net
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  spark:
+    image: apache/spark:3.4.0
+    container_name: spark
+    command: ["bash", "-c", "sleep infinity"]
+    networks:
+      - etl-net
+    ports:
+      - "8080:8080" 
+      - "7077:7077"  
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+    networks:
+      - etl-net
+
+  etl-realtime:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: etl-realtime
+    networks:
+      - etl-net
+    depends_on:
+      - cassandra
+      - mysql
+    environment:
+    - CASSANDRA_HOST=cassandra
+    - CASSANDRA_PORT=9042
+    - MYSQL_HOST=mysql
+    - MYSQL_PORT=3306
+
+networks:
+  etl-net:
+    driver: bridge
+
+volumes:
+  cassandra_data:
+  mysql_data:
