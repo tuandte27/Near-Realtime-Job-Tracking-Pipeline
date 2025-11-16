@@ -108,6 +108,7 @@ def retrieve_company_data():
 def import_to_mysql(output):
     output = output.select('job_id','dates','hours','publisher_id','campaign_id','company_id','group_id',
                            'unqualified','qualified','conversions','clicks','bid_set','spend_hour')
+    output = output.withColumn('updated_at', current_timestamp())
     output = output.withColumnRenamed("qualified", "qualified_application").withColumnRenamed("unqualified", "disqualified_application")
     output = output.withColumnRenamed("conversions", "conversion")
     output.write.format("jdbc") \
@@ -120,7 +121,7 @@ def import_to_mysql(output):
         .save()
     return print('Data imported successfully')
 
-def main_task():
+def main_task(mysql_time):
     print('-----------------------------')
     print('Retrieving data from Cassandra')
     print('-----------------------------')
@@ -129,7 +130,7 @@ def main_task():
     .option("spark.cassandra.connection.host", "cassandra") \
     .option("keyspace", "cassandra_data") \
     .option("table", "tracking") \
-    .load()
+    .load().where(col('ts') > mysql_time)
     
     print('-----------------------------')
     print('Selecting data from Cassandra')
@@ -163,31 +164,30 @@ def main_task():
 
 def get_lastest_time_cassandra():
     df = spark.read \
-    .format("org.apache.spark.sql.cassandra") \
-    .option("spark.cassandra.connection.host", "cassandra") \
-    .option("keyspace", "cassandra_data") \
-    .option("table", "tracking") \
-    .load()
-    df = df.select('ts')
-    df = df.orderBy(col('ts').desc())
+        .format("org.apache.spark.sql.cassandra") \
+        .option("spark.cassandra.connection.host", "cassandra") \
+        .option("keyspace", "cassandra_data") \
+        .option("table", "tracking") \
+        .load()
+    df = df.select('ts').orderBy(col('ts').desc())
     latest_time = df.first()['ts']
+    if latest_time is None:
+        return datetime.datetime(1998, 1, 1, 23, 59, 59)
     return latest_time
 
 def get_lastest_time_mysql():
-    sql = """(SELECT max(updated_at) FROM events) events_table"""
-    mysql_time = spark.read.format("jdbc") \
+    sql = """(SELECT max(updated_at) AS max_time FROM events) events_table"""
+    mysql_df = spark.read.format("jdbc") \
         .option("driver","com.mysql.cj.jdbc.Driver") \
         .option("url", "jdbc:mysql://mysql:3306/project_db") \
         .option("dbtable", sql) \
         .option("user", "root") \
         .option("password", "123") \
         .load()
-    mysql_time = mysql_time.take(1)[0][0]
+    mysql_time = mysql_df.first()['max_time']
     if mysql_time is None:
-        mysql_latest = '1998-01-01 23:59:59'
-    else:
-        mysql_latest = mysql_time.strftime('%Y-%m-%d %H:%M:%S')
-    return mysql_latest
+        mysql_time = datetime.datetime(1998, 1, 1, 23, 59, 59)
+    return mysql_time
 
 while True:
     start_time = datetime.datetime.now()
@@ -199,7 +199,7 @@ while True:
     
     if cassandra_time > mysql_time:
         print('New data found. Starting ETL process...')
-        main_task()
+        main_task(mysql_time)
     else:
         print('No new data found.')
     
