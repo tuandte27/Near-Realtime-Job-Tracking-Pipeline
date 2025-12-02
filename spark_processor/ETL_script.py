@@ -216,7 +216,7 @@ kafka_stream = spark.readStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "broker:29092") \
     .option("subscribe", "cassandra_cdc.cassandra_data.tracking") \
-    .option("startingOffsets", "latest") \
+    .option("startingOffsets", "earliest") \
     .load()
 
 query = kafka_stream.writeStream \
