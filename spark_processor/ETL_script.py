@@ -10,7 +10,6 @@ spark = (SparkSession.builder
 
 spark.sparkContext.setLogLevel("WARN")
 
-# ĐỊNH NGHĨA SCHEMA
 schema_data_row_full = StructType([
     StructField("create_time", StringType()),
     StructField("bid", FloatType()),
@@ -109,28 +108,11 @@ def main_etl(batch_df, batch_id):
     if batch_df.isEmpty():
         print("⚠️ Batch is empty (No new data from Kafka).")
         return
-        
-    print(">>> RAW DATA FROM KAFKA:")
-    batch_df.selectExpr("CAST(value AS STRING)").show(1, truncate=False)
     
     df_parsed = batch_df.select(from_json(col("value").cast("string"), schema_json).alias("data")) \
         .select("data.payload.after.*")
     
     df_clean = df_parsed.withColumn("ts", (col("ts") / 1000).cast("timestamp"))
-    
-    # Xem dữ liệu sau khi Parse
-    print(">>> PARSED DATA (Before Filter):")
-    df_clean.printSchema()
-    df_clean.show(3, truncate=False)
-    
-    # Kiểm tra xem có bị NULL hết không
-    count_total = df_clean.count()
-    count_valid = df_clean.filter(col("job_id").isNotNull()).count()
-    print(f"📊 Stats: Received {count_total} rows. Valid (Job_ID not null): {count_valid} rows.")
-
-    if count_valid == 0:
-        print("❌ ERROR: All data was filtered out! Check Schema or JSON format.")
-        return
 
     df_filtered = df_clean.filter(col("job_id").isNotNull())
     df_filtered.persist()

@@ -17,7 +17,38 @@ def json_serializer(data):
     return json.dumps(data).encode("utf-8")
 
 def cassandra_to_dict(row):
-    return dict(row._asdict())
+    return {
+        "create_time": str(row.create_time),
+        "bid": float(row.bid) if row.bid is not None else None,
+        "bn": row.bn,
+        "campaign_id": int(row.campaign_id) if row.campaign_id is not None else None,
+        "cd": int(row.cd) if row.cd is not None else None,
+        "custom_track": row.custom_track,
+        "de": row.de,
+        "dl": row.dl,
+        "dt": row.dt,
+        "ed": row.ed,
+        "ev": int(row.ev) if row.ev is not None else None,
+        "group_id": int(row.group_id) if row.group_id is not None else None,
+        "id": row.id,
+        "job_id": int(row.job_id) if row.job_id is not None else None,
+        "md": row.md,
+        "publisher_id": int(row.publisher_id) if row.publisher_id is not None else None,
+        "rl": row.rl,
+        "sr": row.sr,
+        "ts": int(row.ts.timestamp() * 1000) if row.ts else None,
+        "tz": int(row.tz) if row.tz is not None else None,
+        "ua": row.ua,
+        "uid": row.uid,
+        "utm_campaign": row.utm_campaign,
+        "utm_content": row.utm_content,
+        "utm_medium": row.utm_medium,
+        "utm_source": row.utm_source,
+        "utm_term": row.utm_term,
+        "v": int(row.v) if row.v is not None else None,
+        "vp": row.vp
+    }
+
 
 def get_last_scan_time():
     try:
@@ -80,6 +111,7 @@ def main():
                 
                 if sent > 0:
                     print(f"✅ [Sync] Sent {sent} events. Updated last_scan to: {current_batch_max_ts}")
+                    # Có dữ liệu mới -> Cập nhật mốc thời gian theo dữ liệu đó
                     last_scan = current_batch_max_ts
                 else:
                     last_scan = loop_start_time
