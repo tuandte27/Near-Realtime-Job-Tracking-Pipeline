@@ -1,78 +1,67 @@
-# <p align="center"> 🚀 Near Realtime Job Application Tracking Pipeline </p>
+# <p align="center"> 🚀 Near Realtime Job Tracking Pipeline </p>
 
-This project is a **near real-time data pipeline** (5-10 second interval) that tracks recruitment campaign performance. It uses a **Change Data Capture (CDC)** ETL process with **Apache Spark** to move and transform raw performance logs from **Cassandra** (Data Lake) to **MySQL** (Data Warehouse). The final goal is to display up-to-date metrics on **Grafana** dashboards for immediate monitoring and optimization of campaign bidding strategies. The entire system is containerized using **Docker** for easy deployment and orchestration
-
----
-
-## 📌 Project Overview
-The pipeline uses **Spark** and **Change Data Capture (CDC)** to process fresh data from source to reporting.
-
-* **Extraction (CDC):** **Spark** pulls only new/updated event records from **Cassandra** (Data Lake) based on the timestamp (`<ts>`), using a **CDC** approach to target changes since the `<last_load>`.
-* **Transformation:** **Spark** cleans, aggregates, and computes key performance metrics (`<clicks>`, `<applications>`, `<conversions>`), grouping by dimensions (like `<job_id>`, `<campaign_id>`) and enriching data by joining with company info from **MySQL**.
-* **Loading:** The final, structured dataset is loaded into **MySQL** (Data Warehouse) in append mode.
-* **Visualization:** **Grafana** reads the updated **MySQL** data to display near real-time performance dashboards.
+This project is a **near real-time data pipeline** (~2-second interval for 50 records) that tracks recruitment campaign performance. It implements a **custom Change Data Capture (CDC)** workflow that captures incremental changes from **Cassandra** and streams them into **Kafka**, where **Apache Spark Structured Streaming** consumes, processes, and transforms the data before loading it into **MySQL** (Data Warehouse). The processed performance metrics are visualized on **Grafana** dashboards for immediate monitoring and optimization of recruitment campaigns. The entire system is fully **containerized with Docker**, ensuring consistent, automated, and easily portable deployment across environments.
 
 ---
+
 
 ## 🛠️ Tech Stack
 
 | Component | Description |
 | :--- | :--- |
-| **Cassandra** | Serves as a **Data Lake** for storing raw, high-velocity data. |
-| **Apache Spark** | Performs the **ETL processing** and transforms data for analysis. |
+| **Cassandra** | Serves as a **Data Lake** for storing raw, high-velocity campaign event data. |
+| **Kafka** | Streams changes captured from Cassandra to downstream processing. |
+| **Spark** | Performs **real-time ETL processing**, aggregating and transforming data for analysis. |
 | **MySQL** | Acts as a **Data Warehouse** for structured storage and querying. |
 | **Grafana** | Provides **near real-time dashboards** and visualizations. |
-| **Docker** | **Containerizes** the entire system for easy deployment and orchestration. |
+| **Docker** | **Containerizes** the system for easy deployment, scaling, and orchestration. |
+
+---
 
 ## 🗂️ Project Structure
 
 ```plaintext
-Near-Realtime-Job-Application-Tracking-Pipeline/
-├──jars
-│   ├── mysql-connector-j-8.0.33.jar
-│   └── spark-cassandra-connector-assembly_2.12-3.4.0.jar
-├──.gitignore
-├──docker-compose.yml
-├──Dockerfile
-├──ETL_script.py                                              # ETL file
-├──README.md                                                  # Project documentation                                         
-└── report.pdf                                                # Project report
+Near-Realtime-Job-Tracking-Pipeline/
+├── cdc_producer
+│   ├── Dockerfile
+│   └── producer.py
+├── config
+│   ├── cassandra_init.sh
+│   ├── cassandra_schema.cql
+│   └── mysql_schema.sql
+├── spark_processor
+│   ├── Dockerfile
+│   └── ETL_script.py
+├── docker-compose.yml
+└── README.md
 ```
 
 ---
 
 ## 🔄 ETL Flow
 
-This pipeline extracts, transforms, and loads recruitment campaign performance data from **Cassandra** to **MySQL**, supporting near real-time monitoring on **Grafana**.
+This pipeline uses a custom CDC approach to process recruitment data from **Cassandra** to **MySQL** in near real-time.
 
-### 1. Extract
- - Data is pulled from **Cassandra**, which serves as the **data lake** storing raw event logs.
-- Using **Apache Spark**, only new or updated records since the last successful MySQL load are retrieved, based on the **timestamp (`ts`)**.
-### 2. Transform
-- **Spark** processes raw event logs by:
-  - Filtering and aggregating records.
-  - Computing key metrics such as:
-    - `clicks`
-    - `qualified` / `unqualified applications`
-    - `conversions`
-- Data cleaning steps:
-  - Filling null values
-  - Grouping by relevant dimensions:
-    - `job_id`, `campaign_id`, `publisher_id`, `group_id`, `date`, `hour`
-  - Enriching with **company info** from MySQL
-- The output is a **structured, analytics-ready dataset**.
+### 1. Extract (Custom CDC)
+* **Polling:** A custom **Python script** continuously scans **Cassandra** for new records using the timestamp (`ts`).
+* **Streaming:** It detects new events and pushes them as JSON messages to a **Kafka** topic.
+* **Efficiency:** The script runs every 0.5 seconds, capturing data almost instantly.
+
+### 2. Transform (Spark Streaming)
+* **Ingestion:** **Apache Spark** reads the raw data stream from **Kafka**.
+* **Processing:**
+    * **Aggregation:** Calculates `clicks`, `spend`, and `applications` (qualified/disqualified).
+    * **Grouping:** Organizes data by Job ID, Campaign, and Hour.
+* **Enrichment:** Joins the stream with **MySQL** to add Company details to the final dataset.
+
 ### 3. Load
-The transformed dataset is loaded into **MySQL** (data warehouse) in **append mode**.
-- Each record contains:
-  - Aggregated metrics
-  - Timestamps
-- This enables **near real-time dashboards** (e.g., Grafana) to display up-to-date performance metrics without delay.
+* **Storage:** The processed data is written to **MySQL** in **append mode**.
+* **Result:** Structured, analytics-ready data is immediately available for **Grafana** dashboards.
 
 ### ⚡ Highlights
-- **Near real-time updates**: 5–10 second intervals from **Cassandra** to **Grafana**  
-- **CDC-based ETL** ensures only incremental changes are processed  
-- **Containerized with Docker** for easy deployment and management  
-- **Analytics-ready data** supports instant monitoring and optimization
+* **Custom Polling:** Lightweight Python solution acting as CDC.
+* **Real-time:** Data moves from source to dashboard in seconds.
+* **Scalable:** Fully containerized using **Docker**.
 
 ![Flowchart](images/flowchart.png)
 
